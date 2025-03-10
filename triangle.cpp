@@ -11,8 +11,7 @@ int main()
 {
     printf("\n==========================================================================================================="
            "========================\n"
-           "\nWelcome to Huron’s Triangles. We take care of all your triangle needs.\n"
-           "Please enter your name: \n\n");
+           "\nWelcome to Huron’s Triangles. We take care of all your triangle needs.\n");
 
     printf("Please enter your name: ");
     getline(cin, userName);  // Use getline for string input

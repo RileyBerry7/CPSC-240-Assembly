@@ -26,22 +26,14 @@
 #****************************************************************************************************************************
 
 # Assemble the ASM files into object files
-nasm -f elf64 manager.asm -o manager.o
-# naism -f elf64 input_array.asm -o input_array.o
-# nasm -f elf64 output_array.asm -o output_array.o
-# nasm -f elf64 compute_sum.asm -o compute_sum.o
-# nasm -f elf64 isfloat.asm -o isfloat.o
-# nasm -f elf64 swap.asm -o swap.o
- 
-# Compile the C files
-#gcc -z noexecstack -no-pie main.c sort_array.c isfloat.o input_array.o output_array.o compute_sum.o swap.o manager.o -o array_program -lc
-
+nasm -f elf64 manager.asm    -o manager.o
+nasm -f elf64 istriangle.asm -o istriangle.o
 
 # Compile the C++ files using g++ (since they involve C++ standard library)
 g++ -c triangle.cpp -o triangle.o
 
 # Link everything together using g++ (this ensures C++ standard libraries are included)
-g++ -z noexecstack -no-pie triangle.o manager.o -o hurons_triangles -lc
+g++ -z noexecstack -no-pie triangle.o manager.o istriangle.o -o hurons_triangles -lc
 
 # Run the program
 ./hurons_triangles
