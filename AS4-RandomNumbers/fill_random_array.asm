@@ -34,57 +34,50 @@
 ;    and manages the overall execution.
 ;____________________________________________________________________________________________________________________________
 
-extern isnan
-extern random_numbers
-extern num_count
-
 global fill_random_array
 
 section .text
+
+; void fill_random_array(double *array, int64_t size)
+; rdi = pointer to array
+; rsi = number of elements
 fill_random_array:
     push    rbp
     mov     rbp, rsp
-    push    rbx            ; Loop counter/index
-    push    r8             ; Offset into random_numbers
-    push    r9             ; Temporary storage for random value
+    push    rbx
 
-    ; Save the requested count in rbx and store it into num_count.
-    mov     rbx, rdi               ; rbx = count
-    mov     dword [num_count], edi
+    mov     rbx, 0          ; index = 0
+    cmp     rsi, 100
+    jg      .limit_100      ; cap array size to 100
+    mov     rdx, rsi        ; rdx = size
+    jmp     .start
+.limit_100:
+    mov     rdx, 100
 
-    xor     r8, r8                 ; offset = 0
+.start:
+.loop:
+    cmp     rbx, rdx        ; if index >= size, done
+    jge     .done
 
-.fill_loop:
-    cmp     rbx, 0                 ; If count is 0, we're done
-    je      .done
-
-.generate_random:
-    ; Generate 64 random bits using RDRAND.
+.try_rdrand:
     rdrand  rax
-    jnc     .generate_random       ; Retry if RDRAND fails
+    jnc     .try_rdrand     ; try again if carry not set
 
-    ; Preserve the random value in r9.
-    mov     r9, rax
+    ; move rax into xmm0
+    movq    xmm0, rax
 
-    ; Move the value into XMM0 to test for NaN.
-    movq    xmm0, r9
-    call    isnan
-    cmp     rax, 0
-    jne     .generate_random       ; If isnan returns nonzero, generate a new value
+    ; optional NaN check — not strictly needed but keeping it if you want:
+    ucomisd xmm0, xmm0
+    jp      .try_rdrand     ; NaN? retry
 
-    ; Store the raw random 64-bit value into the global array.
-    mov     [random_numbers + r8], r9
+    ; write to array[rdi + rbx * 8]
+    movsd   [rdi + rbx*8], xmm0
 
-    ; Advance the offset by 8 bytes (size of a double)
-    add     r8, 8
-
-    ; Decrement count and repeat the loop.
-    dec     rbx
-    jmp     .fill_loop
+    inc     rbx
+    jmp     .loop
 
 .done:
-    pop     r9
-    pop     r8
     pop     rbx
     pop     rbp
     ret
+

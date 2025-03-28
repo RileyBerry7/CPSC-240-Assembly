@@ -36,54 +36,46 @@
 
 global show_array
 extern printf
-extern random_numbers
-extern num_count
 
 section .data
     header   db "IEEE754 Scientific Decimal", 10, 0
-    ; Format: a 64-bit hexadecimal number with "0x" prefix and 16 digits,
-    ; a space, then a double in scientific notation, and a newline.
-    fmt_line db "%#016llx %e", 10, 0
+    fmt_line db "0x%016llX %e", 10, 0  ; Format: hex + scientific
 
 section .text
+; void show_array(double *array, int64_t size)
+; rdi = pointer to array
+; rsi = number of elements
 show_array:
     push    rbp
     mov     rbp, rsp
-    push    rbx        ; loop counter
-    push    r12        ; offset into random_numbers
+    push    rbx
+    push    r12
 
     ; Print header
-    lea     rdi, [rel header]
+    lea     rdi, [header]
     xor     eax, eax
     call    printf
 
-    ; Load the element count from num_count (a 32-bit integer)
-    mov     ecx, [num_count]
-
-    ; Start offset at 0
-    xor     r12, r12
+    xor     rbx, rbx          ; index = 0
+    mov     r12, rdi          ; r12 = pointer to array
+    mov     r13, rsi          ; r13 = number of elements
 
 .loop:
-    cmp     ecx, 0
-    je      .done
+    cmp     rbx, r13
+    jge     .done
 
-    ; Load the 64-bit value (bit pattern for the double) from random_numbers.
-    mov     rax, [random_numbers + r12]
+    ; Load double from array
+    movsd   xmm0, [r12 + rbx*8]     ; load double into xmm0
+    movq    rax, xmm0               ; copy bit pattern to rax for hex print
 
-    ; Pass the 64-bit integer for the hex conversion.
-    mov     rsi, rax
-
-    ; Pass the same 64-bit bit pattern for the double conversion.
-    mov     rdx, rax
-
-    ; Call printf with our format line.
-    lea     rdi, [rel fmt_line]
+    ; Set up printf args
+    lea     rdi, [fmt_line]         ; format string
+    mov     rsi, rax                ; hex version
+    ; xmm0 already holds float version
     xor     eax, eax
     call    printf
 
-    ; Advance the offset (8 bytes per double)
-    add     r12, 8
-    dec     ecx
+    inc     rbx
     jmp     .loop
 
 .done:
@@ -91,4 +83,3 @@ show_array:
     pop     rbx
     pop     rbp
     ret
-

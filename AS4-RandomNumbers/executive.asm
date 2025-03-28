@@ -42,6 +42,7 @@ extern printf
 extern fgets
 extern stdin           ; Ensure that stdin is available from the C library
 extern atoi
+extern malloc          ; Import malloc to allocate memory dynamically
 
 global executive
 section .data
@@ -54,7 +55,7 @@ msg_greeting        db "Nice to meet you ", 0
 msg_description     db "This program will generate 64-bit IEEE float numbers.", 10, 0
 msg_limit_prompt    db "How many numbers do you want? Today's limit is 100 per customer. ", 0
 msg_array_stored    db "Your numbers have been stored in an array. Here is that array:", 10, 10, 0
-msg_normalized      db "The array will now be normalized to the range 1.0 to 2.0. Here is the normalized array:", 0
+msg_normalized      db "The array will now be normalized to the range 1.0 to 2.0. Here is the normalized array:", 10, 10, 0
 msg_sorted          db "The array will now be sorted. Here is the sorted array:", 0
 msg_goodbye         db "Goodbye ", 0
 msg_return_visit    db ". You are welcome any time.", 0
@@ -69,6 +70,7 @@ name_input      resb 64   ; Reserve 64 bytes for name input
 title_input     resb 64   ; Reserve 64 bytes for title input
 quantity_input  resb 64   ; Reseves 64 bytes for # of float in the array
 num_count       resd 1    ; Reserve 1 word (4 bytes) for storing number count
+array_ptr       resq 1    ; Pointer for dynamically allocated array
 
 section .text
 executive:
@@ -162,20 +164,50 @@ executive:
     mov     rdi, quantity_input   ; Pass the string to atoi
     call    atoi                  ; atoi returns the integer in rax
     mov     rdi, rax              ; Prepare rdi for fill_random_array
+
+    mov     r15, rax              ; Save the number of elements for later
     
+    ;============================
+    ; Dynamically Allocate Array =
+    ;============================
+    mov     rsi, rax              ; Size (quantity of doubles)
+    shl     rsi, 3                ; Multiply by 8 (size of double in bytes)
+    call    malloc                ; Call malloc to allocate memory
+    mov     [array_ptr], rax      ; Store the pointer to the array
+
     ;============================    
     ; Generate and Display Array
     ;===========================
-
     ; Generate the random numbers.
+    mov     rdi, [array_ptr]      ; Pass the pointer to the array
     call fill_random_array
 
-    ; Print message that array is stored.
+       ; Print message that array is stored.
     mov     rdi, msg_array_stored
     call    printf
 
-    call    show_array
+     ; Pass the pointer to the dynamically allocated array (rdi)
+    mov     rdi, [array_ptr]      ; rdi = array pointer
+    mov     rsi, r15              ; rsi = number of elements (size of the array)
 
+    ; Call show_array to display the array
+    ;call    show_array
+
+    ;============================    
+    ; Normalize and Display Array
+    ;===========================
+
+    mov     rdi, msg_normalized
+    call    printf
+
+    ;============================    
+    ; Sort and Display Array
+    ;==========================
+
+    mov     rdi, msg_sorted
+    call    printf
+
+ 
     ;=========================
     ; Goodbye Message
     ;=========================
