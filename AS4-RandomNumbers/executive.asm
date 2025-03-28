@@ -39,10 +39,9 @@ extern sort
 extern normalize_array
 extern show_array
 extern printf
-; extern scanf            ; No longer used for name/title input
 extern fgets
-
 extern stdin           ; Ensure that stdin is available from the C library
+extern atoi
 
 global executive
 section .data
@@ -52,8 +51,9 @@ section .data
 msg_name_prompt     db "Please enter your name: ", 0
 msg_title_prompt    db "Please enter your title (Mr, Ms, Sargent, Chief, Project Leader, etc): ", 0
 msg_greeting        db "Nice to meet you ", 0
+msg_description     db "This program will generate 64-bit IEEE float numbers.", 10, 0
 msg_limit_prompt    db "How many numbers do you want? Today's limit is 100 per customer. ", 0
-msg_array_stored    db "Your numbers have been stored in an array. Here is that array:", 0
+msg_array_stored    db "Your numbers have been stored in an array. Here is that array:", 10, 10, 0
 msg_normalized      db "The array will now be normalized to the range 1.0 to 2.0. Here is the normalized array:", 0
 msg_sorted          db "The array will now be sorted. Here is the sorted array:", 0
 msg_goodbye         db "Goodbye ", 0
@@ -63,17 +63,18 @@ newline2 db 10, 10, 0   ; two newlines (LF, LF) and a null terminator
 
 section .bss
 ;=========================
-; BSS Section
+; BSS Section            =
 ;=========================
-name_input  resb 64   ; Reserve 64 bytes for name input
-title_input resb 64   ; Reserve 64 bytes for title input
-num_count   resd 1     ; Reserve 1 word (4 bytes) for storing number count
+name_input      resb 64   ; Reserve 64 bytes for name input
+title_input     resb 64   ; Reserve 64 bytes for title input
+quantity_input  resb 64   ; Reseves 64 bytes for # of float in the array
+num_count       resd 1    ; Reserve 1 word (4 bytes) for storing number count
 
 section .text
 executive:
-    ;=========================
-    ; Register Backup
-    ;=========================
+    ;======================
+    ; Register Backup     =
+    ;======================
     push    rbp
     mov     rbp, rsp
     pushfq
@@ -83,9 +84,9 @@ executive:
     push    rsi
     push    rdi
 
-    ;=========================
-    ; Input Name using fgets
-    ;=========================
+    ;=============
+    ; Input Name =
+    ;=============
     mov     rdi, msg_name_prompt       ; Load prompt message address into rdi
     call    printf                     ; Print the prompt message
 
@@ -100,9 +101,9 @@ executive:
     mov     rdi, name_input
     call    remove_newline
 
-    ;=========================
-    ; Input Title using fgets
-    ;=========================
+    ;================
+    ; Input Title   =
+    ;================
     mov     rdi, msg_title_prompt      ; Load title input prompt into rdi
     call    printf                     ; Print the prompt for title
 
@@ -128,7 +129,7 @@ executive:
     mov     byte [rdi], 0          ; Append a new null terminator after the space
 
     ;=========================
-    ; Greet User
+    ; Greet User             =
     ;=========================
     mov     rdi, msg_greeting
     call    printf
@@ -140,10 +141,49 @@ executive:
     ; Prints two newlines
     mov     rdi, newline2
     call    printf
+    
+    ;=========================
+    ; Input Array Quantity   =
+    ;=========================
+    mov     rdi, msg_description
+    call    printf
+    mov     rdi, msg_limit_prompt
+    call    printf
+    
+    mov     rdi, quantity_input            ; Buffer for input
+    mov     rsi, 64                    ; Maximum number of bytes to read
+    mov     rdx, qword [stdin]
+    call    fgets
+
+    ; Remove the trailing newline, if present
+    mov     rdi, quantity_input
+    call    remove_newline
+
+    mov     rdi, quantity_input   ; Pass the string to atoi
+    call    atoi                  ; atoi returns the integer in rax
+    mov     rdi, rax              ; Prepare rdi for fill_random_array
+    
+    ;============================    
+    ; Generate and Display Array
+    ;===========================
+
+    ; Generate the random numbers.
+    call fill_random_array
+
+    ; Print message that array is stored.
+    mov     rdi, msg_array_stored
+    call    printf
+
+    call    show_array
 
     ;=========================
     ; Goodbye Message
     ;=========================
+
+    ; Prints two newlines
+    mov     rdi, newline2
+    call    printf
+
     mov     rdi, msg_goodbye           ; Load goodbye message into rdi
     call    printf                     ; Print the goodbye message
     mov     rdi, title_input           ; Load title_input into rdi
@@ -168,11 +208,11 @@ executive:
     mov     rax, name_input
     ret                                 ; Return to calling function (main.c)
 
-;-----------------------------------------------------------
+;================================================================================
 ; remove_newline:
 ;   A helper routine to scan through the provided string (in rdi)
 ;   and replace the first newline (0x0A) encountered with a null terminator.
-;-----------------------------------------------------------
+;================================================================================
 remove_newline:
     push    rdi                        ; Save pointer in case needed
 .remove_loop:

@@ -28,54 +28,63 @@
 ;
 ;    Purpose:
 ;    This program coordinates the generation of up to 100 random 64-bit 
-;    floating-point numbers using rdrand. It checks for NaN values, normalizes 
+;    floating-point numbers using RDRAND. It checks for NaN values, normalizes 
 ;    the numbers to a specified range, sorts them, and displays the results.
 ;    The executive function orchestrates the flow between the various modules 
- ;   and manages the overall execution.
+;    and manages the overall execution.
 ;____________________________________________________________________________________________________________________________
 
 extern isnan
+extern random_numbers
+extern num_count
 
-section .bss
-    random_numbers resq 100              ; Reserve space for 100 64-bit random numbers (array)
-    num_generated resq 1                 ; Counter to track the number of generated random numbers
+global fill_random_array
 
 section .text
-    global fill_random_array
-
 fill_random_array:
-    ; Arguments: rdi - number of random numbers to generate (num_count from the user input)
-    ; Returns: None, modifies random_numbers
+    push    rbp
+    mov     rbp, rsp
+    push    rbx            ; Loop counter/index
+    push    r8             ; Offset into random_numbers
+    push    r9             ; Temporary storage for random value
 
-    ; Initialize counter (rax) to 0
-    xor rax, rax                        ; Clear rax (this will be used as the index in the array)
+    ; Save the requested count in rbx and store it into num_count.
+    mov     rbx, rdi               ; rbx = count
+    mov     dword [num_count], edi
 
-generate_loop:
-    ; Check if we've generated enough random numbers
-    cmp rax, rdi                         ; Compare counter with user input (num_count)
-    jge .done                             ; If counter >= num_count, we're done
+    xor     r8, r8                 ; offset = 0
 
-    ; Generate a random number using rdrand (64-bit random)
-    rdrand rbx                           ; rbx = random 64-bit number
+.fill_loop:
+    cmp     rbx, 0                 ; If count is 0, we're done
+    je      .done
 
-    ; Check if the number is NaN using isnan.asm (calls the isnan function)
-    ; Result will be 1 if the number is NaN, 0 if not
-    call isnan
-    cmp rax, 0                           ; If result of isnan is 0 (not NaN)
-    je .store_number                     ; If not NaN, store the number
+.generate_random:
+    ; Generate 64 random bits using RDRAND.
+    rdrand  rax
+    jnc     .generate_random       ; Retry if RDRAND fails
 
-    ; If NaN, discard and generate another number
-    jmp generate_loop
+    ; Preserve the random value in r9.
+    mov     r9, rax
 
-.store_number:
-    ; Store the valid random number in the array (random_numbers + rax*8)
-    mov [random_numbers + rax*8], rbx   ; Store rbx (random number) at the array index
+    ; Move the value into XMM0 to test for NaN.
+    movq    xmm0, r9
+    call    isnan
+    cmp     rax, 0
+    jne     .generate_random       ; If isnan returns nonzero, generate a new value
 
-    ; Increment the counter
-    inc rax                              ; Increment the counter (rax)
+    ; Store the raw random 64-bit value into the global array.
+    mov     [random_numbers + r8], r9
 
-    ; Repeat the loop
-    jmp generate_loop
+    ; Advance the offset by 8 bytes (size of a double)
+    add     r8, 8
+
+    ; Decrement count and repeat the loop.
+    dec     rbx
+    jmp     .fill_loop
 
 .done:
+    pop     r9
+    pop     r8
+    pop     rbx
+    pop     rbp
     ret

@@ -26,19 +26,20 @@
 #****************************************************************************************************************************
 
 # Assemble the ASM files into object files
-nasm -f elf64 executive.asm -o executive.o
+nasm -f elf64 executive.asm 	    -o executive.o
 nasm -f elf64 fill_random_array.asm -o fill_random_array.o
-nasm -f elf64 show_array.asm -o show_array.o
-nasm -f elf64 normalize_array.asm -o normalize_array.o
-nasm -f elf64 isnan.asm -o isnan.o
-nasm -f elf64 swap.asm -o swap.o
+nasm -f elf64 show_array.asm 	    -o show_array.o
+nasm -f elf64 normalize_array.asm   -o normalize_array.o
+nasm -f elf64 isnan.asm 	    -o isnan.o
+nasm -f elf64 swap.asm 	  	    -o swap.o
+nasm -f elf64 globals.asm 	    -o globals.o
 
 # Compile the C files using gcc
 gcc -c main.c -o main.o
 gcc -c sort.c -o sort.o
 
 # Link everything together using gcc
-gcc -z noexecstack -no-pie main.o executive.o sort.o show_array.o fill_random_array.o normalize_array.o isnan.o swap.o -o random_numbers -lc
+gcc -z noexecstack -no-pie main.o executive.o sort.o show_array.o fill_random_array.o normalize_array.o isnan.o swap.o globals.o -o random_numbers -lc
 
 # Run the program
 ./random_numbers
