@@ -1,9 +1,33 @@
-; edison.asm
-; Handles the input of resistances for the sub-circuits and EMF input.
+;****************************************************************************************************************************
+; edison.asm — Manages user input/output for the "Electricity" program
+;
+; Copyright (C) 2025 Riley Berry
+;
+; This file is part of the software program "Electricity".
+; Distributed under GNU GPL v3: https://www.gnu.org/licenses/
+;****************************************************************************************************************************
 
+;____________________________________________________________________________________________________________________________
+; Author:       Riley Berry
+; Email:        rberr7@csu.fullerton.edu
+; CWID:         885405613
+; Course:       CPSC 240-5 Section 3
+;
+; File Purpose:
+;   - Collect user name and career
+;   - Request and process resistance values for three sub-circuits
+;   - Compute and display total resistance and circuit current based on EMF
+;   - Display personalized acknowledgment
+;
+; Date:         04/05/25
+;____________________________________________________________________________________________________________________________
+
+;****************************************************************************************************
+; External Symbols
+;****************************************************************************************************
 extern name
 extern career
-extern atof
+extern atof            ; Use the updated atof (see note at the end)
 extern res1
 extern res2
 extern res3
@@ -12,158 +36,133 @@ extern display_current
 extern ftoa
 extern strlen
 
+;****************************************************************************************************
+; Data Section - Constant strings used in prompts and messages
+;****************************************************************************************************
 section .data
-    msg_name db 'Please enter your full name: ', 0
-    len_msg_name equ $ - msg_name
+    msg_name                db 'Please enter your full name: ', 0
+    len_msg_name            equ $ - msg_name
 
-    msg_career db 'Please enter the career path you are following: ', 0
-    len_msg_career equ $ - msg_career
+    msg_career              db 'Please enter the career path you are following: ', 0
+    len_msg_career          equ $ - msg_career
 
-    msg_appreciate_start db 'Thank you. We appreciate all ', 0
-    len_appreciate_start equ $ - msg_appreciate_start
+    msg_appreciate_start    db 'Thank you. We appreciate all ', 0
+    len_appreciate_start    equ $ - msg_appreciate_start
 
-    msg_appreciate_end db 's.', 0xA, 0xA, 0
-    len_appreciate_end equ $ - msg_appreciate_end
+    msg_appreciate_end      db 's.', 0xA, 0xA, 0
+    len_appreciate_end      equ $ - msg_appreciate_end
 
-    msg_subcircuit_prompt db "Your circuit has 3 sub-circuits.", 0xA
-                          db "Please enter the resistance in ohms on each of the three sub-circuits separated by ws.", 0xA, 0
-    len_subcircuit_prompt equ $ - msg_subcircuit_prompt
+    msg_subcircuit_prompt   db "Your circuit has 3 sub-circuits.", 0xA, \
+                              "Please enter the resistance in ohms on each of the three sub-circuits separated by ws.", 0xA, 0
+    len_subcircuit_prompt   equ $ - msg_subcircuit_prompt
 
-    msg_result_intro db "Thank you.", 0xA, \
-                     "The total resistance of the full circuit is computed to be ", 0
-    len_result_intro equ $ - msg_result_intro
+    msg_result_intro        db "Thank you.", 0xA, 0xA, 0
+                            db "The total resistance of the full circuit is computed to be ", 0
+    len_result_intro        equ $ - msg_result_intro
 
-    msg_result_unit db " ohms.", 0xA, 0xA, 0
-    len_result_unit equ $ - msg_result_unit
+    msg_result_unit         db " ohms.", 0xA, 0xA, 0
+    len_result_unit         equ $ - msg_result_unit
 
-    msg_promptEMF db "EMF is constant on every branch of any circuit.", 0xA, "Please enter the EMF (volts): ", 0
-    len_msg_EMF equ $ - msg_promptEMF
+    msg_promptEMF           db "EMF is constant on every branch of any circuit.", 0xA, \
+                              "Please enter the EMF (volts): ", 0
+    len_msg_EMF             equ $ - msg_promptEMF
 
-    msg_current_intro db "Thank you.", 0xA, \
-                   "The current flowing in this circuit has been computed: ", 0
-    len_current_intro equ $ - msg_current_intro
+    msg_current_intro       db "Thank you.", 0xA, 0xA, \
+                              "The current flowing in this circuit has been computed: ", 0
+    len_current_intro       equ $ - msg_current_intro
 
-    msg_current_units db " amps", 0xA, 0xA, 0
-    len_current_units equ $ - msg_current_units
+    msg_current_units       db " amps", 0xA, 0xA, 0
+    len_current_units       equ $ - msg_current_units
 
     msg_personal_thanks_prefix db "Thank you ", 0
-    len_thanks_prefix equ $ - msg_personal_thanks_prefix
+    len_thanks_prefix       equ $ - msg_personal_thanks_prefix
 
-    msg_personal_thanks_suffix db " for using the program Electricity.", 0xA, 0
-    len_thanks_suffix equ $ - msg_personal_thanks_suffix
+    msg_personal_thanks_suffix db " for using the program Electricity.", 0xA, 0xA, 0
+    len_thanks_suffix       equ $ - msg_personal_thanks_suffix
 
+;****************************************************************************************************
+; BSS Section - Buffers and uninitialized storage
+;****************************************************************************************************
 section .bss
-    resist_input     resb 32
-    EMFbuffer        resb 32
-    total_res        resd 1
-    EMF              resd 1
-    current          resd 1
-    current_str_buf  resb 64
+    resist_input        resb 32
+    EMFbuffer           resb 32
+    total_res           resd 1
+    EMF                 resd 1
+    current             resd 1
+    current_str_buf     resb 64
 
+;****************************************************************************************************
+; Text Section - Main function and utility routines
+;****************************************************************************************************
 section .text
 global edison_main
 
+;----------------------------------------------------------------------------------------------------
+; edison_main — Core logic and flow of the Electricity program
+;----------------------------------------------------------------------------------------------------
 edison_main:
-    ; Prompt for full name
+
+    ;-----------------------------------
+    ; Prompt: Name
+    ;-----------------------------------
     mov edx, len_msg_name
     mov ecx, msg_name
-    mov ebx, 1
-    mov eax, 4
-    int 0x80
+    call print
 
-    ; Read full name
-    mov edx, 64
+    mov edx, 32
     mov ecx, name
-    mov ebx, 0
-    mov eax, 3
-    int 0x80
+    call read_line          ; Read user name; read_line now appends a null terminator
+    call strip_newline
 
-    ; Prompt for career path
+    ;-----------------------------------
+    ; Prompt: Career
+    ;-----------------------------------
     mov edx, len_msg_career
     mov ecx, msg_career
-    mov ebx, 1
-    mov eax, 4
-    int 0x80
+    call print
 
-    ; Read career path
-    mov edx, 64
+    mov edx, 32
     mov ecx, career
-    mov ebx, 0
-    mov eax, 3
-    int 0x80
+    call read_line
+    call strip_newline
 
-    ; Strip newline from career
-    mov ecx, career
-    mov edi, 0
-.strip_newline:
-    cmp byte [ecx + edi], 10
-    je  .found_newline
-    cmp byte [ecx + edi], 0
-    je  .end_strip
-    inc edi
-    jmp .strip_newline
-
-.found_newline:
-    mov byte [ecx + edi], 0
-.end_strip:
-
-    ; Appreciation message
+    ;-----------------------------------
+    ; Appreciation Message
+    ;-----------------------------------
     mov edx, len_appreciate_start
     mov ecx, msg_appreciate_start
-    mov ebx, 1
-    mov eax, 4
-    int 0x80
+    call print
 
-    mov edx, 64
+    mov edx, 32
     mov ecx, career
-    mov ebx, 1
-    mov eax, 4
-    int 0x80
+    call print
 
     mov edx, len_appreciate_end
     mov ecx, msg_appreciate_end
-    mov ebx, 1
-    mov eax, 4
-    int 0x80
+    call print
 
-    ; Prompt resistance input
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, msg_subcircuit_prompt
+    ;-----------------------------------
+    ; Resistance Input Instructions
+    ;-----------------------------------
     mov edx, len_subcircuit_prompt
-    int 0x80
+    mov ecx, msg_subcircuit_prompt
+    call print
 
-    ; Sub-circuit 1
-    mov edx, 32
-    mov ecx, resist_input
-    mov ebx, 0
-    mov eax, 3
-    int 0x80
-    mov esi, resist_input
-    call atof
+    ;--- Sub-circuit 1 ---
+    call get_resistance
     fstp dword [res1]
 
-    ; Sub-circuit 2
-    mov edx, 32
-    mov ecx, resist_input
-    mov ebx, 0
-    mov eax, 3
-    int 0x80
-    mov esi, resist_input
-    call atof
+    ;--- Sub-circuit 2 ---
+    call get_resistance
     fstp dword [res2]
 
-    ; Sub-circuit 3
-    mov edx, 32
-    mov ecx, resist_input
-    mov ebx, 0
-    mov eax, 3
-    int 0x80
-    mov esi, resist_input
-    call atof
+    ;--- Sub-circuit 3 ---
+    call get_resistance
     fstp dword [res3]
 
-    ; Compute total resistance
+    ;-----------------------------------
+    ; Calculate Total Resistance
+    ;-----------------------------------
     push dword [res3]
     push dword [res2]
     push dword [res1]
@@ -171,107 +170,138 @@ edison_main:
     add esp, 12
     fstp dword [total_res]
 
-    ; Print result intro
+    ;-----------------------------------
+    ; Output: Total Resistance
+    ;-----------------------------------
     mov edx, len_result_intro
     mov ecx, msg_result_intro
-    mov ebx, 1
-    mov eax, 4
-    int 0x80
+    call print
 
-    ; Convert total_res to ASCII
     fld dword [total_res]
     mov edi, current_str_buf
     call ftoa
 
-    ; Get length of converted string
     mov edi, current_str_buf
     call strlen
-    mov edx, eax              ; result length in edx
-
-    ; Print converted total resistance
-    mov eax, 4
-    mov ebx, 1
+    mov edx, eax
     mov ecx, current_str_buf
-    int 0x80
+    call print
 
-    ; Print unit
     mov edx, len_result_unit
     mov ecx, msg_result_unit
-    mov ebx, 1
-    mov eax, 4
-    int 0x80
+    call print
 
-    ; Prompt for EMF input
+    ;-----------------------------------
+    ; Prompt: EMF
+    ;-----------------------------------
     mov edx, len_msg_EMF
     mov ecx, msg_promptEMF
-    mov ebx, 1
-    mov eax, 4
-    int 0x80
+    call print
 
-    ; Read EMF input
     mov edx, 32
     mov ecx, EMFbuffer
-    mov ebx, 0
-    mov eax, 3
-    int 0x80
-    mov esi, EMFbuffer
-    call atof
+    call read_line
+    call strip_newline
+
+    mov esi, EMFbuffer        ; Set pointer into ESI for atof
+    call atof                 ; atof converts the string to float (in ST(0))
     fstp dword [EMF]
 
-    ; Compute current = EMF / total_res
+    ;-----------------------------------
+    ; Calculate and Display Current
+    ;-----------------------------------
     fld dword [EMF]
     fld dword [total_res]
     fdivp st1, st0
     fstp dword [current]
 
-    ; Print current intro
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, msg_current_intro
     mov edx, len_current_intro
-    int 0x80
+    mov ecx, msg_current_intro
+    call print
 
-    ; Convert current to string
     fld dword [current]
     mov edi, current_str_buf
     call ftoa
 
-    ; Get string length
     mov edi, current_str_buf
     call strlen
     mov edx, eax
-
-    ; Print converted current
-    mov eax, 4
-    mov ebx, 1
     mov ecx, current_str_buf
-    int 0x80
+    call print
 
-    ; Print units
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, msg_current_units
     mov edx, len_current_units
-    int 0x80
+    mov ecx, msg_current_units
+    call print
 
-    ; Final thank-you message
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, msg_personal_thanks_prefix
+    ;-----------------------------------
+    ; Final Thanks with Name
+    ;-----------------------------------
     mov edx, len_thanks_prefix
-    int 0x80
+    mov ecx, msg_personal_thanks_prefix
+    call print
 
-    mov eax, 4
-    mov ebx, 1
+    mov edx, 32
     mov ecx, name
-    mov edx, 64
-    int 0x80
+    call print
 
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, msg_personal_thanks_suffix
     mov edx, len_thanks_suffix
-    int 0x80
+    mov ecx, msg_personal_thanks_suffix
+    call print
 
+    ret
+
+;****************************************************************************************************
+; Helper Functions
+;****************************************************************************************************
+
+;----------------------------------------------------------------------------------------------------
+; read_line — Reads one line of input from stdin into [ECX] with maximum length in EDX;
+;            then appends a null terminator right after the data.
+;----------------------------------------------------------------------------------------------------
+read_line:
+    mov ebx, 0         ; STDIN
+    mov eax, 3         ; sys_read
+    int 0x80
+    mov byte [ecx + eax], 0   ; Append null terminator
+    ret
+
+;----------------------------------------------------------------------------------------------------
+; print — Writes string from [ECX] of length EDX to stdout
+;----------------------------------------------------------------------------------------------------
+print:
+    mov eax, 4
+    mov ebx, 1         ; STDOUT
+    int 0x80
+    ret
+
+;----------------------------------------------------------------------------------------------------
+; get_resistance — Reads a float string and leaves its float value on the FPU stack.
+;----------------------------------------------------------------------------------------------------
+get_resistance:
+    mov edx, 32
+    mov ecx, resist_input
+    call read_line           ; read_line now null-terminates the input
+    call strip_newline       ; remove any newline character
+    mov esi, resist_input    ; Pass pointer in ESI (required by atof)
+    call atof                ; atof converts the ASCII string to a float (in ST(0))
+    ret
+
+;----------------------------------------------------------------------------------------------------
+; strip_newline — Scans string at [ECX] and replaces the first newline (ASCII 10) with a null terminator.
+;----------------------------------------------------------------------------------------------------
+strip_newline:
+    push edi
+    xor edi, edi
+.strip_loop:
+    cmp byte [ecx + edi], 10
+    je .found
+    cmp byte [ecx + edi], 0
+    je .done
+    inc edi
+    jmp .strip_loop
+.found:
+    mov byte [ecx + edi], 0
+.done:
+    pop edi
     ret
 
